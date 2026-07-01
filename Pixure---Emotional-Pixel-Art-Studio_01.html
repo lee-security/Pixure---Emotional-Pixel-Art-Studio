@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixure - 감성 픽셀 아트 스튜디오</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (Inter & Noto Sans KR) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            background-color: #f9f9fb;
+        }
+        /* 프리미엄 스크롤바 디자인 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e4e4e7;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d4d4d8;
+        }
+        /* 픽셀 형태가 깨지지 않고 선명하게 렌더링되도록 처리 */
+        .pixelated-canvas {
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+    </style>
+</head>
+<body class="text-zinc-800 antialiased min-h-screen flex flex-col transition-colors duration-300">
+
+    <!-- Header -->
+    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-zinc-100 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 bg-black rounded-xl flex items-center justify-center text-white shadow-sm">
+                <i data-lucide="palette" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold tracking-tight text-zinc-900 flex items-center gap-1.5">
+                    Pixure <span class="text-xs px-2 py-0.5 bg-zinc-100 rounded-full font-medium text-zinc-500">v1.2</span>
+                </h1>
+                <p class="text-[11px] text-zinc-400">Emotional Pixel Art Filter</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-3">
+            <button id="btnInfo" class="p-2 text-zinc-400 hover:text-zinc-600 rounded-full hover:bg-zinc-50 transition-colors">
+                <i data-lucide="help-circle" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Panel: Controls (5 columns) -->
+        <section class="lg:col-span-5 flex flex-col space-y-6">
+            
+            <!-- Upload Box -->
+            <div id="dropZone" class="border-2 border-dashed border-zinc-200 hover:border-zinc-400 rounded-2xl p-6 text-center cursor-pointer bg-white transition-all duration-200 group relative overflow-hidden shadow-sm">
+                <input type="file" id="fileInput" class="hidden" accept="image/*">
+                <div id="uploadPrompt" class="space-y-3 py-4">
+                    <div class="w-12 h-12 bg-zinc-50 rounded-full flex items-center justify-center mx-auto text-zinc-400 group-hover:scale-110 transition-transform">
+                        <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="font-medium text-sm text-zinc-700">여기에 이미지 드롭 또는 클릭하여 업로드</p>
+                        <p class="text-xs text-zinc-400 mt-1">PNG, JPG, WEBP (최대 10MB)</p>
+                    </div>
+                </div>
+                <!-- Thumbnail Preview inside Upload Box -->
+                <div id="uploadThumbnail" class="hidden absolute inset-0 bg-zinc-900/5 backdrop-blur-xs flex items-center justify-center p-2">
+                    <img id="thumbImg" src="" alt="Thumbnail" class="h-full object-contain rounded-lg shadow-md border border-white">
+                    <button id="btnResetImage" class="absolute top-4 right-4 bg-white/90 text-zinc-800 p-2 rounded-full shadow-lg hover:bg-white transition-colors" title="이미지 삭제">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Editor Core Section (Hidden initially or disabled) -->
+            <div id="controlPanel" class="bg-white rounded-2xl p-6 border border-zinc-100 shadow-sm space-y-6 opacity-60 pointer-events-none transition-all duration-300">
+                <div class="flex items-center justify-between border-b border-zinc-100 pb-3">
+                    <h2 class="font-semibold text-zinc-900 flex items-center gap-2">
+                        <i data-lucide="sliders" class="w-4 h-4 text-zinc-500"></i> 컨트롤 센터
+                    </h2>
+                    <span class="text-xs text-zinc-400 font-medium">실시간 필터 적용</span>
+                </div>
+
+                <!-- Slider: Pixel Size -->
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-medium text-zinc-500">
+                        <span>픽셀 해상도 (조밀도)</span>
+                        <span id="pixelSizeVal" class="text-zinc-900 font-bold">64px</span>
+                    </div>
+                    <input type="range" id="pixelSize" min="16" max="256" step="8" value="64" class="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none cursor-pointer accent-black">
+                    <p class="text-[10px] text-zinc-400">해상도 값이 낮을수록 픽셀이 크게 도드라져 클래식한 빈티지 효과가 나타납니다.</p>
+                </div>
+
+                <!-- Slider: Color Quantization -->
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-medium text-zinc-500">
+                        <span>컬러 제한 레벨</span>
+                        <span id="colorCountVal" class="text-zinc-900 font-bold">무제한</span>
+                    </div>
+                    <input type="range" id="colorCount" min="4" max="64" step="4" value="64" class="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none cursor-pointer accent-black">
+                </div>
+
+                <!-- Switch: Dithering -->
+                <div class="flex items-center justify-between py-1">
+                    <div class="flex flex-col">
+                        <span class="text-xs font-medium text-zinc-700">Floyd-Steinberg 디더링</span>
+                        <span class="text-[10px] text-zinc-400">도트 무늬 음영 그라데이션 패턴을 자연스럽게 흩뿌립니다.</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="dithering" class="sr-only peer" checked>
+                        <div class="w-10 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-950"></div>
+                    </label>
+                </div>
+
+                <!-- Slider: Contrast & Saturation -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-[11px] font-semibold text-zinc-500">이미지 대비</label>
+                        <input type="range" id="contrast" min="-40" max="40" step="5" value="10" class="w-full h-1 bg-zinc-100 rounded-lg appearance-none cursor-pointer accent-black">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[11px] font-semibold text-zinc-500">이미지 채도</label>
+                        <input type="range" id="saturation" min="-40" max="40" step="5" value="15" class="w-full h-1 bg-zinc-100 rounded-lg appearance-none cursor-pointer accent-black">
+                    </div>
+                </div>
+
+                <!-- Color Palettes Map -->
+                <div class="space-y-3 pb-2">
+                    <label class="text-xs font-medium text-zinc-500 block">레트로 감성 필터 테마</label>
+                    <div class="grid grid-cols-3 gap-2" id="paletteGrid">
+                        <!-- Palette Buttons dynamically loaded -->
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Right Panel: Live Canvas (7 columns) -->
+        <section class="lg:col-span-7 flex flex-col space-y-6">
+            
+            <div class="bg-white rounded-2xl border border-zinc-100 p-6 shadow-sm flex-1 flex flex-col min-h-[400px] md:min-h-[500px]">
+                
+                <!-- Toolbar -->
+                <div class="flex items-center justify-between pb-4 border-b border-zinc-100 mb-6">
+                    <div class="flex items-center space-x-2">
+                        <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" id="statusDot"></span>
+                        <span class="text-xs font-medium text-zinc-600" id="statusMessage">이미지를 업로드해주세요.</span>
+                    </div>
+                    
+                    <div class="flex items-center space-x-1" id="canvasToolbar">
+                        <button id="btnZoomIn" class="p-1.5 hover:bg-zinc-100 rounded-lg text-zinc-500 hover:text-zinc-800 transition-colors" title="확대">
+                            <i data-lucide="zoom-in" class="w-4 h-4"></i>
+                        </button>
+                        <button id="btnZoomOut" class="p-1.5 hover:bg-zinc-100 rounded-lg text-zinc-500 hover:text-zinc-800 transition-colors" title="축소">
+                            <i data-lucide="zoom-out" class="w-4 h-4"></i>
+                        </button>
+                        <button id="btnToggleCompare" class="px-2.5 py-1 hover:bg-zinc-100 rounded-lg text-xs font-medium text-zinc-500 hover:text-zinc-800 transition-colors flex items-center gap-1.5" title="원본 대조">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i> 원본보기
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Artboard / Canvas Viewport -->
+                <div class="flex-1 flex items-center justify-center bg-zinc-50/50 rounded-2xl relative overflow-hidden group min-h-[280px]" id="canvasContainer">
+                    
+                    <!-- Original Image hidden overlay for comparison -->
+                    <img id="originalImgHidden" class="hidden max-h-full max-w-full object-contain absolute z-10 opacity-0 pointer-events-none transition-opacity duration-150">
+
+                    <!-- Core Pixelated Canvas -->
+                    <canvas id="pixelCanvas" class="pixelated-canvas max-w-full max-h-full object-contain shadow-md transition-transform duration-200" style="transform: scale(1);"></canvas>
+
+                    <!-- Initial Placeholder State -->
+                    <div id="canvasPlaceholder" class="text-center p-6 space-y-3 absolute inset-0 flex flex-col items-center justify-center bg-zinc-50/20 z-20 pointer-events-none">
+                        <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-zinc-300 shadow-sm border border-zinc-100">
+                            <i data-lucide="image" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-sm text-zinc-600">작업 공간 대기 중</p>
+                            <p class="text-xs text-zinc-400 mt-1">업로드된 이미지가 선명하고 아름답게 픽셀화됩니다.</p>
+                        </div>
+                    </div>
+
+                    <!-- Loading overlay -->
+                    <div id="loaderOverlay" class="hidden absolute inset-0 bg-white/95 backdrop-blur-xs flex flex-col items-center justify-center space-y-4 z-30 transition-all duration-300">
+                        <div class="relative w-12 h-12">
+                            <div class="absolute inset-0 border-4 border-indigo-100 rounded-xl"></div>
+                            <div class="absolute inset-0 border-4 border-t-zinc-950 rounded-xl animate-spin"></div>
+                        </div>
+                        <div class="text-center">
+                            <p id="loaderTitle" class="font-semibold text-sm text-zinc-800">픽셀화 필터링 적용 중...</p>
+                            <p id="loaderSub" class="text-xs text-zinc-400 mt-1">화면 해상도를 도트 크기로 깎아내고 있습니다.</p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Information Block instead of Download dropdown -->
+                <div class="pt-6 border-t border-zinc-100 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="text-left w-full sm:w-auto">
+                        <span class="text-[10px] uppercase tracking-wider font-semibold text-zinc-400 block">픽셀 밀도</span>
+                        <span class="text-xs text-zinc-600 font-semibold" id="canvasResolutionText">해상도: 대기 중</span>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2 bg-zinc-50 border border-zinc-100 px-4 py-2.5 rounded-xl w-full sm:w-auto justify-center">
+                        <i data-lucide="info" class="w-3.5 h-3.5 text-zinc-500"></i>
+                        <p class="text-[11px] text-zinc-500 font-medium">우클릭(모바일은 길게 누르기)하여 이미지를 바로 저장하세요.</p>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Global Toast notification -->
+    <div id="toast" class="fixed bottom-6 right-6 transform translate-y-10 opacity-0 bg-zinc-900 text-white text-xs py-3.5 px-5 rounded-xl shadow-2xl flex items-center space-x-3 transition-all duration-300 pointer-events-none z-50">
+        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400" id="toastIcon"></i>
+        <span id="toastMsg" class="font-medium">처리가 성공적으로 끝났습니다.</span>
+    </div>
+
+    <!-- Apple-style Modal for Info -->
+    <div id="infoModal" class="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden transition-opacity duration-300 opacity-0">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-5 transform scale-95 transition-transform duration-300">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-zinc-900 text-base">✨ Pixure 가이드</h3>
+                <button id="btnCloseModal" class="text-zinc-400 hover:text-zinc-600 p-1.5 hover:bg-zinc-50 rounded-full transition-colors">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-xs text-zinc-600 leading-relaxed">
+                <p><strong>Pixure</strong>는 이미지를 8비트 및 16비트 레트로 RPG 게임 속 한 장면처럼 정밀하고 감성적으로 가꾸어 주는 미니멀 스튜디오 앱입니다.</p>
+                <div class="bg-zinc-50 p-4 rounded-2xl space-y-2">
+                    <div class="flex gap-2">
+                        <span class="font-bold text-zinc-800">·</span>
+                        <p><strong>도트 조밀도:</strong> 슬라이더를 통해 해상도를 줄임으로써 클래식 게임기 느낌의 면적을 직접 조율할 수 있습니다.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <span class="font-bold text-zinc-800">·</span>
+                        <p><strong>디더링:</strong> 고전 디스플레이 특유의 격자 음영을 생성해 감성 깊이를 더해줍니다.</p>
+                    </div>
+                </div>
+                <p class="text-[11px] text-zinc-400">간결한 정리가 끝난 캔버스의 도트 아트는 브라우저 내부 기능인 마우스 우클릭 혹은 스마트폰의 길게 누르기로 간단하고 깔끔하게 앨범에 보존할 수 있습니다.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-zinc-100 bg-white py-6 px-6 text-center text-xs text-zinc-400 mt-auto">
+        <p>© 2026 Pixure Studio. Minimal Apple Philosophy.</p>
+    </footer>
+
+    <!-- Script Logic -->
+    <script>
+        // Lucide 아이콘 일괄 초기화
+        lucide.createIcons();
+
+        // 전역 상태 변수
+        let uploadedImage = null; // 원본 HTMLImageElement 객체
+        let zoomLevel = 1.0;       // 작업 영역 확대 배율
+        let activePalette = 'original'; // 활성화된 필터 테마 ID
+
+        // 감성 픽셀 컬러 팔레트 사전 정의
+        const PALETTES = {
+            original: {
+                name: '원색 필터',
+                desc: '원본의 본래 컬러감',
+                colors: []
+            },
+            sunset: {
+                name: '가을 노을빛',
+                desc: '아늑하고 짙은 로즈 퍼플 테마',
+                colors: ['#23122c', '#40173f', '#7e2a58', '#b84259', '#e07d53', '#fadc6c', '#fffdf0']
+            },
+            ghibli: {
+                name: '지브리 숲속',
+                desc: '자연 친화적이고 푸르른 톤',
+                colors: ['#132415', '#244d25', '#497e3a', '#7da84a', '#dfdfb1', '#d47853', '#392a40']
+            },
+            neon: {
+                name: '사이버 네온',
+                desc: '레트로 테크 및 아케이드 톤',
+                colors: ['#0a0316', '#141440', '#3b1c6e', '#7b1178', '#b81273', '#00f2fe', '#ffffff']
+            },
+            pastel: {
+                name: '모찌 파스텔',
+                desc: '몽환적이고 보들보들한 톤',
+                colors: ['#fbc4ab', '#ffdab9', '#e8e8e4', '#d8e2dc', '#ece4db', '#ffe5ec', '#90dbf4']
+            },
+            gbClassic: {
+                name: '클래식 겜보이',
+                desc: '완전 클래식 단색 녹조 필터',
+                colors: ['#0f380f', '#306230', '#8bac0f', '#9bbc0f']
+            }
+        };
+
+        // DOM 객체 캐시
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadPrompt = document.getElementById('uploadPrompt');
+        const uploadThumbnail = document.getElementById('uploadThumbnail');
+        const thumbImg = document.getElementById('thumbImg');
+        const btnResetImage = document.getElementById('btnResetImage');
+        const controlPanel = document.getElementById('controlPanel');
+        const canvasPlaceholder = document.getElementById('canvasPlaceholder');
+        const loaderOverlay = document.getElementById('loaderOverlay');
+        const loaderTitle = document.getElementById('loaderTitle');
+        const loaderSub = document.getElementById('loaderSub');
+        const statusMessage = document.getElementById('statusMessage');
+        const statusDot = document.getElementById('statusDot');
+        
+        // 캔버스 및 제어 조작부
+        const pixelCanvas = document.getElementById('pixelCanvas');
+        const originalImgHidden = document.getElementById('originalImgHidden');
+        const pixelSizeSlider = document.getElementById('pixelSize');
+        const pixelSizeVal = document.getElementById('pixelSizeVal');
+        const colorCountSlider = document.getElementById('colorCount');
+        const colorCountVal = document.getElementById('colorCountVal');
+        const ditheringCheckbox = document.getElementById('dithering');
+        const contrastSlider = document.getElementById('contrast');
+        const saturationSlider = document.getElementById('saturation');
+        const paletteGrid = document.getElementById('paletteGrid');
+
+        // 내비게이션 / 정보 및 보기 액션
+        const btnZoomIn = document.getElementById('btnZoomIn');
+        const btnZoomOut = document.getElementById('btnZoomOut');
+        const btnToggleCompare = document.getElementById('btnToggleCompare');
+        const canvasResolutionText = document.getElementById('canvasResolutionText');
+
+        // 모달창 구성
+        const btnInfo = document.getElementById('btnInfo');
+        const infoModal = document.getElementById('infoModal');
+        const btnCloseModal = document.getElementById('btnCloseModal');
+
+        // Toast 알림 함수
+        function showToast(message, isSuccess = true) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+            
+            toastMsg.textContent = message;
+            if (isSuccess) {
+                toastIcon.setAttribute('data-lucide', 'check-circle');
+                toastIcon.className = 'w-4 h-4 text-emerald-400';
+            } else {
+                toastIcon.setAttribute('data-lucide', 'alert-circle');
+                toastIcon.className = 'w-4 h-4 text-rose-400';
+            }
+            lucide.createIcons();
+
+            toast.classList.remove('translate-y-10', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-10', 'opacity-0');
+            }, 3000);
+        }
+
+        // 모달 동작
+        btnInfo.addEventListener('click', () => {
+            infoModal.classList.remove('hidden');
+            setTimeout(() => {
+                infoModal.classList.remove('opacity-0');
+                infoModal.querySelector('div').classList.remove('scale-95');
+                infoModal.querySelector('div').classList.add('scale-100');
+            }, 50);
+        });
+
+        const closeModal = () => {
+            infoModal.classList.add('opacity-0');
+            infoModal.querySelector('div').classList.remove('scale-100');
+            infoModal.querySelector('div').classList.add('scale-95');
+            setTimeout(() => {
+                infoModal.classList.add('hidden');
+            }, 300);
+        };
+        btnCloseModal.addEventListener('click', closeModal);
+        infoModal.addEventListener('click', (e) => {
+            if (e.target === infoModal) closeModal();
+        });
+
+        // 테마 컬러 파레트 버튼 그리기
+        function buildPaletteUI() {
+            paletteGrid.innerHTML = '';
+            Object.keys(PALETTES).forEach(key => {
+                const item = PALETTES[key];
+                const btn = document.createElement('button');
+                btn.className = `p-2.5 rounded-xl text-left border transition-all flex flex-col space-y-1.5 focus:outline-none ${
+                    activePalette === key 
+                    ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm' 
+                    : 'border-zinc-200 hover:border-zinc-300 bg-white hover:bg-zinc-50'
+                }`;
+                btn.onclick = () => {
+                    activePalette = key;
+                    buildPaletteUI();
+                    processPixelArt();
+                };
+
+                const titleText = document.createElement('span');
+                titleText.className = `text-[11px] font-bold tracking-tight block ${activePalette === key ? 'text-white' : 'text-zinc-800'}`;
+                titleText.textContent = item.name;
+
+                const colorDots = document.createElement('div');
+                colorDots.className = 'flex space-x-0.5 overflow-hidden';
+                
+                if (key === 'original') {
+                    // 무지개 형태로 대변
+                    const gradients = ['#ff6b6b', '#ffbe0b', '#4ea8de', '#560bad'];
+                    gradients.forEach(color => {
+                        const dot = document.createElement('span');
+                        dot.className = 'w-2 h-2 rounded-full inline-block flex-shrink-0';
+                        dot.style.backgroundColor = color;
+                        colorDots.appendChild(dot);
+                    });
+                } else {
+                    item.colors.slice(0, 5).forEach(color => {
+                        const dot = document.createElement('span');
+                        dot.className = 'w-2 h-2 rounded-full inline-block flex-shrink-0';
+                        dot.style.backgroundColor = color;
+                        colorDots.appendChild(dot);
+                    });
+                }
+
+                btn.appendChild(titleText);
+                btn.appendChild(colorDots);
+                paletteGrid.appendChild(btn);
+            });
+        }
+
+        // 드래그 앤 드롭 업로드 핸들러
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-zinc-800', 'bg-zinc-50/50');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-zinc-800', 'bg-zinc-50/50');
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // 이미지 삭제 및 리셋
+        btnResetImage.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetApp();
+        });
+
+        function resetApp() {
+            uploadedImage = null;
+            fileInput.value = '';
+            thumbImg.src = '';
+            originalImgHidden.src = '';
+            originalImgHidden.classList.add('hidden');
+            uploadThumbnail.classList.add('hidden');
+            uploadPrompt.classList.remove('hidden');
+            
+            controlPanel.classList.add('opacity-60', 'pointer-events-none');
+            canvasPlaceholder.classList.remove('hidden');
+            
+            statusDot.className = "inline-block w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse";
+            statusMessage.textContent = '이미지를 업로드해주세요.';
+            canvasResolutionText.textContent = '해상도: 대기 중';
+            
+            // 캔버스 초기화
+            const ctx = pixelCanvas.getContext('2d');
+            ctx.clearRect(0, 0, pixelCanvas.width, pixelCanvas.height);
+            // 캔버스 크기 초기화
+            pixelCanvas.removeAttribute('width');
+            pixelCanvas.removeAttribute('height');
+            pixelCanvas.style.width = '100%';
+            pixelCanvas.style.height = '100%';
+        }
+
+        // 파일 처리 로직
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showToast('올바른 이미지 파일을 업로드해주세요.', false);
+                return;
+            }
+            
+            showLoader(true, '이미지 분석 중...', '색상의 깊이와 윤곽을 확인하고 있습니다.');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    uploadedImage = img;
+                    
+                    // 썸네일 노출
+                    thumbImg.src = e.target.result;
+                    uploadPrompt.classList.add('hidden');
+                    uploadThumbnail.classList.remove('hidden');
+                    
+                    // 비교 원본 셋업
+                    originalImgHidden.src = e.target.result;
+
+                    // 레이아웃 해제 및 조작 활성화
+                    controlPanel.classList.remove('opacity-60', 'pointer-events-none');
+                    canvasPlaceholder.classList.add('hidden');
+
+                    statusDot.className = "inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
+                    statusMessage.textContent = '감성 픽셀 가공 준비 완료';
+
+                    // 픽셀 변환 로직 실행
+                    processPixelArt();
+                    showLoader(false);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 로더 조절
+        function showLoader(show, title = '', sub = '') {
+            if (show) {
+                if (title) loaderTitle.textContent = title;
+                if (sub) loaderSub.textContent = sub;
+                loaderOverlay.classList.remove('hidden');
+            } else {
+                loaderOverlay.classList.add('hidden');
+            }
+        }
+
+        // 헥사코드 -> RGB 변환 도구
+        function hexToRgb(hex) {
+            const bigint = parseInt(hex.slice(1), 16);
+            return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
+        }
+
+        // 가장 가까운 유사 색상 검색 (RGB 유클리드 기하 거리 계산)
+        function getClosestColor(r, g, b, paletteColors) {
+            let minDistance = Infinity;
+            let closest = paletteColors[0];
+            for (let i = 0; i < paletteColors.length; i++) {
+                const p = paletteColors[i];
+                const dist = Math.pow(r - p[0], 2) + Math.pow(g - p[1], 2) + Math.pow(b - p[2], 2);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closest = p;
+                }
+            }
+            return closest;
+        }
+
+        // 핵심 픽셀 변환 알고리즘 (동적 이미지 캔버스 가공)
+        function processPixelArt() {
+            if (!uploadedImage) return;
+
+            const targetPixels = parseInt(pixelSizeSlider.value);
+            const colorCountLimit = parseInt(colorCountSlider.value);
+            const useDithering = ditheringCheckbox.checked;
+            const contrast = parseInt(contrastSlider.value);
+            const saturation = parseInt(saturationSlider.value);
+
+            // 1. 비율에 맞추어 축소용 해상도 크기 결정 (긴 변 기준)
+            const scale = targetPixels / Math.max(uploadedImage.width, uploadedImage.height);
+            const sw = Math.max(1, Math.round(uploadedImage.width * scale));
+            const sh = Math.max(1, Math.round(uploadedImage.height * scale));
+
+            canvasResolutionText.textContent = `해상도: ${sw} x ${sh} px`;
+
+            // 가상의 다운스케일 오프스크린 캔버스 생성
+            const offscreenCanvas = document.createElement('canvas');
+            offscreenCanvas.width = sw;
+            offscreenCanvas.height = sh;
+            const ctx = offscreenCanvas.getContext('2d');
+
+            // 기본 그리기 (이미지 비율 유지)
+            ctx.drawImage(uploadedImage, 0, 0, sw, sh);
+            const imgData = ctx.getImageData(0, 0, sw, sh);
+            const data = imgData.data;
+
+            // 2. 이미지 대비(Contrast) 및 채도(Saturation) 후처리 보정식 적용
+            const contrastFactor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+            const satFactor = (saturation + 100) / 100;
+
+            for (let i = 0; i < data.length; i += 4) {
+                // 투명도 제외
+                if (data[i + 3] === 0) continue;
+
+                let r = data[i];
+                let g = data[i+1];
+                let b = data[i+2];
+
+                // 대비 공식 적용
+                r = Math.min(255, Math.max(0, contrastFactor * (r - 128) + 128));
+                g = Math.min(255, Math.max(0, contrastFactor * (g - 128) + 128));
+                b = Math.min(255, Math.max(0, contrastFactor * (b - 128) + 128));
+
+                // 채도 공식 적용
+                const gray = 0.2989 * r + 0.5870 * g + 0.1140 * b;
+                r = Math.min(255, Math.max(0, gray + satFactor * (r - gray)));
+                g = Math.min(255, Math.max(0, gray + satFactor * (g - gray)));
+                b = Math.min(255, Math.max(0, gray + satFactor * (b - gray)));
+
+                data[i] = r;
+                data[i+1] = g;
+                data[i+2] = b;
+            }
+
+            // 3. 감성 테마 팔레트 맵핑 및 Floyd-Steinberg 정밀 디더링
+            const currentTheme = PALETTES[activePalette];
+            let paletteColors = [];
+            if (activePalette !== 'original' && currentTheme.colors.length > 0) {
+                paletteColors = currentTheme.colors.map(hex => hexToRgb(hex));
+            }
+
+            if (paletteColors.length > 0) {
+                if (useDithering) {
+                    // 고전 디더링을 포함한 팔레트 변환
+                    for (let y = 0; y < sh; y++) {
+                        for (let x = 0; x < sw; x++) {
+                            const idx = (y * sw + x) * 4;
+                            if (data[idx + 3] === 0) continue;
+
+                            const oldR = data[idx];
+                            const oldG = data[idx+1];
+                            const oldB = data[idx+2];
+
+                            const closest = getClosestColor(oldR, oldG, oldB, paletteColors);
+                            const newR = closest[0];
+                            const newG = closest[1];
+                            const newB = closest[2];
+
+                            data[idx] = newR;
+                            data[idx+1] = newG;
+                            data[idx+2] = newB;
+
+                            // 오차 계산
+                            const errR = oldR - newR;
+                            const errG = oldG - newG;
+                            const errB = oldB - newB;
+
+                            // 주변 인접 픽셀로 에러 분배 오차 확산 (FS 공식)
+                            const distributeError = (nx, ny, weight) => {
+                                if (nx >= 0 && nx < sw && ny >= 0 && ny < sh) {
+                                    const nIdx = (ny * sw + nx) * 4;
+                                    if (data[nIdx + 3] > 0) {
+                                        data[nIdx] = Math.min(255, Math.max(0, data[nIdx] + errR * weight));
+                                        data[nIdx+1] = Math.min(255, Math.max(0, data[nIdx+1] + errG * weight));
+                                        data[nIdx+2] = Math.min(255, Math.max(0, data[nIdx+2] + errB * weight));
+                                    }
+                                }
+                            };
+
+                            distributeError(x + 1, y, 7 / 16);
+                            distributeError(x - 1, y + 1, 3 / 16);
+                            distributeError(x, y + 1, 5 / 16);
+                            distributeError(x + 1, y + 1, 1 / 16);
+                        }
+                    }
+                } else {
+                    // 디더링 없는 일대일 컬러 매칭
+                    for (let i = 0; i < data.length; i += 4) {
+                        if (data[i + 3] === 0) continue;
+                        const closest = getClosestColor(data[i], data[i+1], data[i+2], paletteColors);
+                        data[i] = closest[0];
+                        data[i+1] = closest[1];
+                        data[i+2] = closest[2];
+                    }
+                }
+            } else if (colorCountLimit < 64) {
+                // 오리지널 컬러 제한 (비트 양자화 효과 수축)
+                const steps = Math.max(2, Math.round(Math.pow(colorCountLimit, 1/3)));
+                for (let i = 0; i < data.length; i += 4) {
+                    if (data[i + 3] === 0) continue;
+                    data[i] = Math.round(data[i] / 255 * (steps - 1)) * (255 / (steps - 1));
+                    data[i+1] = Math.round(data[i+1] / 255 * (steps - 1)) * (255 / (steps - 1));
+                    data[i+2] = Math.round(data[i+2] / 255 * (steps - 1)) * (255 / (steps - 1));
+                }
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+
+            // 4. 리얼 스케일 뷰포트 캔버스 설정 (해상도 문제 해결 핵심)
+            // 캔버스의 실제 픽셀 해상도를 계산된 sw, sh로 설정
+            pixelCanvas.width = sw;
+            pixelCanvas.height = sh;
+            
+            // CSS 스타일 초기화 (컨테이너에 맞춰 비율 유지)
+            pixelCanvas.style.width = '100%';
+            pixelCanvas.style.height = '100%';
+
+            const destCtx = pixelCanvas.getContext('2d');
+            
+            // 크리스프 엣지 모드를 활성화하여 픽셀의 경계가 뭉개지지 않도록 방어
+            destCtx.imageSmoothingEnabled = false;
+            destCtx.mozImageSmoothingEnabled = false;
+            destCtx.webkitImageSmoothingEnabled = false;
+            destCtx.msImageSmoothingEnabled = false;
+            
+            destCtx.drawImage(offscreenCanvas, 0, 0);
+        }
+
+        // 실시간 값 변경 청취기 등록
+        pixelSizeSlider.addEventListener('input', (e) => {
+            pixelSizeVal.textContent = `${e.target.value}px`;
+            processPixelArt();
+        });
+
+        colorCountSlider.addEventListener('input', (e) => {
+            colorCountVal.textContent = e.target.value == 64 ? '무제한' : `${e.target.value}색상`;
+            processPixelArt();
+        });
+
+        ditheringCheckbox.addEventListener('change', processPixelArt);
+        contrastSlider.addEventListener('input', processPixelArt);
+        saturationSlider.addEventListener('input', processPixelArt);
+
+        // 줌 및 시각 대조 이벤트
+        btnZoomIn.addEventListener('click', () => {
+            zoomLevel = Math.min(3.0, zoomLevel + 0.2);
+            pixelCanvas.style.transform = `scale(${zoomLevel})`;
+        });
+
+        btnZoomOut.addEventListener('click', () => {
+            zoomLevel = Math.max(0.6, zoomLevel - 0.2);
+            pixelCanvas.style.transform = `scale(${zoomLevel})`;
+        });
+
+        // 원본보기 대조 이벤트 (마우스 누르고 있을 시 원본 겹치기 노출)
+        let isComparing = false;
+        btnToggleCompare.addEventListener('mousedown', () => {
+            if (!uploadedImage) return;
+            originalImgHidden.classList.remove('hidden');
+            originalImgHidden.style.opacity = '1';
+            pixelCanvas.style.opacity = '0.1';
+        });
+
+        const stopComparing = () => {
+            originalImgHidden.style.opacity = '0';
+            originalImgHidden.classList.add('hidden');
+            pixelCanvas.style.opacity = '1';
+        };
+        btnToggleCompare.addEventListener('mouseup', stopComparing);
+        btnToggleCompare.addEventListener('mouseleave', stopComparing);
+
+        // 터치 기기용 대조
+        btnToggleCompare.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!uploadedImage) return;
+            originalImgHidden.classList.remove('hidden');
+            originalImgHidden.style.opacity = '1';
+            pixelCanvas.style.opacity = '0.1';
+        });
+        btnToggleCompare.addEventListener('touchend', stopComparing);
+
+        // 초기 인터페이스 구동
+        buildPaletteUI();
+    </script>
+</body>
+</html>
